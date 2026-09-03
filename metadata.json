@@ -1,0 +1,6 @@
+{
+  "name": "ResQMap",
+  "description": "Emergency disaster mapping, shelter navigation, rescue coordination, drone logistics, and disaster intelligence platform.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
