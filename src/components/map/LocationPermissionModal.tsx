@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   MapPin,
   ShieldCheck,
@@ -32,13 +32,34 @@ export const LocationPermissionModal: React.FC<LocationPermissionModalProps> = (
   onOpenManualModal,
   onEnablePinDrop,
 }) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const isDenied = status === 'PERMISSION_DENIED' || errorDetail?.code === 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
-      <div className="relative w-full max-w-md rounded-2xl bg-stone-900 border border-stone-800 shadow-2xl text-stone-100 font-sans overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="relative w-full max-w-md rounded-2xl bg-stone-900 border border-stone-800 shadow-2xl text-stone-100 font-sans overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        role="dialog"
+        aria-modal="true"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800 bg-stone-950">
           <div className="flex items-center gap-3">

@@ -67,10 +67,10 @@ const ResQMapApp: React.FC = () => {
           /* CIVILIAN EMERGENCY CITIZEN APP */
           <div className="space-y-4">
             {/* Civilian Tab Navigation Bar */}
-            <div className="bg-stone-900 border border-stone-800 rounded-2xl p-1.5 flex items-center justify-between sm:justify-start gap-1 overflow-x-auto shadow-md">
+            <div className="bg-stone-900 border border-stone-800 rounded-2xl p-1.5 flex items-center justify-start gap-1.5 overflow-x-auto no-scrollbar shadow-md">
               <button
                 onClick={() => setCivilianTab('home')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap flex-shrink-0 ${
                   civilianTab === 'home'
                     ? 'bg-amber-600 text-stone-950 shadow'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
@@ -82,7 +82,7 @@ const ResQMapApp: React.FC = () => {
 
               <button
                 onClick={() => setCivilianTab('shelters')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap flex-shrink-0 ${
                   civilianTab === 'shelters'
                     ? 'bg-emerald-600 text-white shadow'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
@@ -94,7 +94,7 @@ const ResQMapApp: React.FC = () => {
 
               <button
                 onClick={() => setCivilianTab('map')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap flex-shrink-0 ${
                   civilianTab === 'map'
                     ? 'bg-sky-600 text-white shadow'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
@@ -106,7 +106,7 @@ const ResQMapApp: React.FC = () => {
 
               <button
                 onClick={() => setCivilianTab('alerts')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap flex-shrink-0 ${
                   civilianTab === 'alerts'
                     ? 'bg-amber-600 text-stone-950 shadow'
                     : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
@@ -118,7 +118,7 @@ const ResQMapApp: React.FC = () => {
 
               <button
                 onClick={() => setCivilianTab('sos')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold font-mono transition-colors whitespace-nowrap flex-shrink-0 ${
                   civilianTab === 'sos'
                     ? 'bg-red-600 text-white shadow'
                     : activeSOS

@@ -47,7 +47,7 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-stone-950 border-b border-stone-800 text-stone-100 shadow-md">
+    <header className="sticky top-0 z-[1200] bg-stone-950 border-b border-stone-800 text-stone-100 shadow-xl">
       {/* Top Critical Alert Marquee if exists */}
       {criticalAlert && (
         <div className="bg-red-950/90 border-b border-red-800/80 px-4 py-1.5 flex items-center justify-between text-xs text-red-200">
@@ -92,70 +92,79 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Center/Status Controls: Helplines, Connectivity, Scenario, Role */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap">
           {/* Quick Indian Helplines Button */}
           <button
+            type="button"
             onClick={() => setShowHelplinesModal(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-950/70 hover:bg-red-900/80 text-red-200 border border-red-700/80 text-xs font-mono font-bold transition-all active:scale-95 shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-950/80 hover:bg-red-900/90 text-red-200 border border-red-700/80 text-xs font-mono font-bold transition-all active:scale-95 shadow-sm min-h-[36px] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             title="Open National Emergency Helplines (112, 1078, 108)"
+            aria-label="Open Indian Emergency Helplines directory"
           >
-            <Phone className="w-3.5 h-3.5 text-red-400" />
+            <Phone className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
             <span>112 Helplines</span>
           </button>
+
           {/* Connectivity Status & Toggle (Critical for Offline Testing) */}
           <button
+            type="button"
             onClick={toggleConnectivity}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono transition-colors ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-mono transition-all min-h-[36px] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
               isOnline
-                ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/80 hover:bg-emerald-950/70'
-                : 'bg-red-950/80 text-red-300 border-red-700 animate-pulse hover:bg-red-900/80'
+                ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/80 hover:bg-emerald-900/60'
+                : 'bg-red-950/90 text-red-300 border-red-600 animate-pulse hover:bg-red-900/90'
             }`}
             title="Click to toggle simulated network connectivity"
+            aria-label={isOnline ? 'Network status: Online. Click to simulate offline mode.' : 'Network status: Offline. Click to reconnect.'}
           >
             {isOnline ? (
               <>
-                <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-semibold">ONLINE</span>
+                <Wifi className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="font-bold">ONLINE</span>
               </>
             ) : (
               <>
-                <WifiOff className="w-3.5 h-3.5 text-red-400" />
-                <span className="font-semibold">OFFLINE (DEGRADED)</span>
+                <WifiOff className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                <span className="font-bold">OFFLINE</span>
               </>
             )}
           </button>
 
           {/* Role Switcher Dropdown */}
           <div className="relative">
+            <label htmlFor="user-role-select" className="sr-only">Switch User Role</label>
             <select
+              id="user-role-select"
               value={currentUser.role}
               onChange={(e) => switchRole(e.target.value as UserRole)}
-              className="appearance-none bg-stone-900 border border-stone-700 text-stone-200 text-xs rounded-lg px-3 py-1.5 pr-7 font-mono font-medium focus:outline-none focus:border-amber-500 cursor-pointer shadow-sm"
+              className="appearance-none bg-stone-900 hover:bg-stone-850 border border-stone-700 hover:border-stone-600 text-stone-200 text-xs rounded-xl px-2.5 sm:px-3 py-1.5 pr-7 font-mono font-semibold focus:outline-none focus:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer shadow-sm min-h-[36px] transition-colors"
               aria-label="Switch User Role"
             >
-              <option value="civilian">Civilian (Mobile App)</option>
+              <option value="civilian">Civilian (Citizen)</option>
               <option value="responder">Search & Rescue Responder</option>
               <option value="incident_commander">Incident Commander</option>
               <option value="drone_operator">Drone Operator</option>
               <option value="shelter_manager">Shelter Manager</option>
               <option value="wildlife_rescue">Wildlife Rescue Unit</option>
-              <option value="admin">GIS System Administrator</option>
+              <option value="admin">GIS System Admin</option>
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-stone-400 absolute right-2 top-2.5 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-stone-400 absolute right-2.5 top-3 pointer-events-none" />
           </div>
 
           {/* Mode Switch Button (Civilian Mobile vs Responder Dashboard) */}
           <button
+            type="button"
             onClick={() => setAppMode(appMode === 'civilian' ? 'operations' : 'civilian')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-colors flex items-center gap-1.5 border shadow-sm ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 border shadow-sm min-h-[36px] cursor-pointer active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
               appMode === 'operations'
-                ? 'bg-amber-600 hover:bg-amber-500 text-stone-950 border-amber-400'
-                : 'bg-stone-800 hover:bg-stone-700 text-stone-100 border-stone-700'
+                ? 'bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold border-amber-400'
+                : 'bg-stone-850 hover:bg-stone-800 text-stone-100 border-stone-700'
             }`}
+            aria-label={appMode === 'civilian' ? 'Switch to Operations Mode' : 'Switch to Civilian App'}
           >
-            <Radio className="w-3.5 h-3.5" />
+            <Radio className="w-3.5 h-3.5 flex-shrink-0" />
             <span className="hidden sm:inline">
-              {appMode === 'civilian' ? 'Switch to Operations Mode' : 'Switch to Civilian App'}
+              {appMode === 'civilian' ? 'Operations Mode' : 'Civilian App'}
             </span>
             <span className="sm:hidden">
               {appMode === 'civilian' ? 'Ops' : 'Civilian'}

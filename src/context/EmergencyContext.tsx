@@ -16,7 +16,9 @@ import {
   MapLayer,
   CandidateRoute,
   DisasterScenario,
+  DeployDroneParams,
 } from '../types';
+import { ALL_INDIAN_REGIONS } from '../data/indianSheltersData';
 import {
   INITIAL_USERS,
   INITIAL_SHELTERS,
@@ -90,6 +92,7 @@ interface EmergencyContextType {
     distanceMeters: number;
     isModelEstimate: boolean;
     source: string;
+    hazard?: HazardZone;
   } | null;
 
   // Responder Live Location Layer (Sections 11, 12, 13)
@@ -116,6 +119,12 @@ interface EmergencyContextType {
   predictions: FireSpreadPrediction[];
   mapLayers: MapLayer[];
 
+  // State and Region Partitioning
+  selectedState: string;
+  setSelectedState: (state: string) => void;
+  selectedRegionId: string;
+  setSelectedRegionId: (regionId: string) => void;
+
   // Selected State
   selectedIncident: Incident | null;
   setSelectedIncident: (inc: Incident | null) => void;
@@ -132,6 +141,7 @@ interface EmergencyContextType {
   reportHazard: (hazard: Partial<RoadBlockage>) => Promise<void>;
   createDroneSurveyMission: (droneId: string, areaName: string) => Promise<DroneMission>;
   createReliefDelivery: (droneId: string, incidentId: string, item: string, quantity: string) => Promise<DroneMission>;
+  deployDroneToLocation: (params: DeployDroneParams) => Promise<DroneMission>;
   progressDroneMission: (missionId: string, progressDelta: number) => Promise<void>;
   publishAlert: (alert: Partial<Alert>) => Promise<void>;
   createWildlifeCase: (data: Partial<WildlifeRescueCase>) => Promise<void>;
@@ -161,11 +171,44 @@ export const EmergencyProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [lastSyncTime, setLastSyncTime] = useState<string>('Just now');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; address: string }>({
-    lat: 37.7715,
-    lng: -122.4365,
-    address: '220 Pine Crest Way, Sector 4 (Current GPS)',
+    lat: 28.6692,
+    lng: 77.2315,
+    address: 'Civil Lines, Yamuna River Basin, Delhi NCR 110054',
   });
   const [activeScenario, setActiveScenario] = useState<DisasterScenario>('wildfire');
+
+  // State and Region Partitioning (Defaults to Delhi)
+  const [selectedState, setSelectedStateState] = useState<string>('Delhi');
+  const [selectedRegionId, setSelectedRegionIdState] = useState<string>('delhi-yamuna');
+
+  const setSelectedState = useCallback((newState: string) => {
+    setSelectedStateState(newState);
+    const matchedRegion =
+      ALL_INDIAN_REGIONS.find((r) => r.state.toLowerCase() === newState.toLowerCase()) ||
+      ALL_INDIAN_REGIONS.find((r) => r.name.toLowerCase().includes(newState.toLowerCase())) ||
+      ALL_INDIAN_REGIONS[0];
+    if (matchedRegion) {
+      setSelectedRegionIdState(matchedRegion.id);
+      setUserLocation({
+        lat: matchedRegion.center.lat,
+        lng: matchedRegion.center.lng,
+        address: `${matchedRegion.name} (${matchedRegion.state})`,
+      });
+    }
+  }, []);
+
+  const setSelectedRegionId = useCallback((newRegionId: string) => {
+    setSelectedRegionIdState(newRegionId);
+    const matchedRegion = ALL_INDIAN_REGIONS.find((r) => r.id === newRegionId);
+    if (matchedRegion) {
+      setSelectedStateState(matchedRegion.state);
+      setUserLocation({
+        lat: matchedRegion.center.lat,
+        lng: matchedRegion.center.lng,
+        address: `${matchedRegion.name} (${matchedRegion.state})`,
+      });
+    }
+  }, []);
 
   const [shelters, setShelters] = useState<Shelter[]>(INITIAL_SHELTERS);
   const [hazards, setHazards] = useState<HazardZone[]>(INITIAL_HAZARDS);
@@ -200,6 +243,7 @@ export const EmergencyProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     distanceMeters: number;
     isModelEstimate: boolean;
     source: string;
+    hazard?: HazardZone;
   } | null>(null);
 
   // Responder Live Location Subsystem (Sections 11, 12, 13)
@@ -317,6 +361,7 @@ export const EmergencyProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       distanceMeters: number;
       isModelEstimate: boolean;
       source: string;
+      hazard?: HazardZone;
     } | null = null;
 
     let minDistance = Infinity;
@@ -333,6 +378,7 @@ export const EmergencyProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           distanceMeters: Math.round(dist),
           isModelEstimate: Boolean(h.isModelEstimate),
           source: h.source || 'Authorized Emergency Authority',
+          hazard: h,
         };
       }
     }
@@ -424,9 +470,14 @@ export const EmergencyProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const calculateShelterRoutes = useCallback(
     (origin = userLocation) => {
-      return rankSheltersAndRoutes(origin, shelters, hazards, roadBlockages);
+      // Filter shelters to selected state if set and not 'all'
+      const stateShelters = selectedState && selectedState !== 'all'
+        ? shelters.filter((s) => s.state?.toLowerCase() === selectedState.toLowerCase())
+        : shelters;
+      const effectiveShelters = stateShelters.length > 0 ? stateShelters : shelters;
+      return rankSheltersAndRoutes(origin, effectiveShelters, hazards, roadBlockages);
     },
-    [userLocation, shelters, hazards, roadBlockages]
+    [userLocation, selectedState, shelters, hazards, roadBlockages]
   );
 
   // Submit rescue request (handles offline drafting)
@@ -702,6 +753,112 @@ export const EmergencyProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return newMission;
   };
 
+  const deployDroneToLocation = async (params: DeployDroneParams): Promise<DroneMission> => {
+    const { droneId, missionType, targetLocation, payload, surveyAreaKm2, operatorNotes, state } = params;
+    const drone = drones.find((d) => d.id === droneId);
+    const missionState = state || drone?.state || selectedState;
+    const missionId = `msn-${missionState.toLowerCase().replace(/\s+/g, '').slice(0, 2)}-${Date.now().toString().slice(-4)}`;
+
+    const newMission: DroneMission = {
+      id: missionId,
+      droneId,
+      droneName: drone?.name || 'Emergency UAV',
+      state: missionState,
+      missionType,
+      status: 'in_progress',
+      progress: 12,
+      targetLocation: {
+        lat: targetLocation.lat,
+        lng: targetLocation.lng,
+        name: targetLocation.name || `Target Location (${targetLocation.lat.toFixed(4)}, ${targetLocation.lng.toFixed(4)})`,
+      },
+      payload: missionType === 'relief_delivery' ? payload : undefined,
+      surveyArea: missionType === 'survey' ? {
+        name: targetLocation.name || `Aerial Sector (${targetLocation.lat.toFixed(4)}, ${targetLocation.lng.toFixed(4)})`,
+        polygon: [
+          [targetLocation.lat - 0.006, targetLocation.lng - 0.006],
+          [targetLocation.lat + 0.006, targetLocation.lng - 0.006],
+          [targetLocation.lat + 0.006, targetLocation.lng + 0.006],
+          [targetLocation.lat - 0.006, targetLocation.lng + 0.006],
+        ],
+        areaKm2: surveyAreaKm2 || 3.8,
+      } : undefined,
+      startedAt: new Date().toISOString(),
+      operatorNotes: operatorNotes || (missionType === 'survey'
+        ? `Aerial LiDAR reconnaissance over ${targetLocation.name || 'target coordinates'}.`
+        : `Emergency air-drop of ${payload?.quantity || '1x'} ${payload?.item || 'Relief Supplies'} to ${targetLocation.name || 'target coordinates'}.`),
+    };
+
+    setDroneMissions((prev) => [newMission, ...prev]);
+    setDrones((prev) =>
+      prev.map((d) =>
+        d.id === droneId
+          ? {
+              ...d,
+              status: missionType === 'survey' ? 'surveying' : 'delivering',
+              currentMissionId: missionId,
+              currentLocation: {
+                lat: Number(((d.currentLocation.lat * 2 + targetLocation.lat) / 3).toFixed(5)),
+                lng: Number(((d.currentLocation.lng * 2 + targetLocation.lng) / 3).toFixed(5)),
+              },
+            }
+          : d
+      )
+    );
+
+    addAudit(
+      missionType === 'survey' ? 'Deploy Aerial Survey UAV' : 'Deploy Relief Supply Drop UAV',
+      'DroneMission',
+      missionId,
+      `Drone ${drone?.name} (${missionState}) deployed to (${targetLocation.lat.toFixed(4)}, ${targetLocation.lng.toFixed(4)})`
+    );
+
+    return newMission;
+  };
+
+  // Live flight path & mission progress simulation
+  useEffect(() => {
+    const flightInterval = setInterval(() => {
+      setDroneMissions((prevMissions) => {
+        let changed = false;
+        const updated = prevMissions.map((m) => {
+          if (m.status === 'in_progress' && m.progress < 100) {
+            changed = true;
+            const newProgress = Math.min(100, m.progress + 4);
+            const isCompleted = newProgress >= 100;
+            return {
+              ...m,
+              progress: newProgress,
+              status: isCompleted ? 'completed' : m.status,
+              completedAt: isCompleted ? new Date().toISOString() : m.completedAt,
+            };
+          }
+          return m;
+        });
+        return changed ? updated : prevMissions;
+      });
+
+      setDrones((prevDrones) => {
+        return prevDrones.map((d) => {
+          if (d.status === 'surveying' || d.status === 'delivering') {
+            const jitterLat = (Math.random() - 0.5) * 0.0004;
+            const jitterLng = (Math.random() - 0.5) * 0.0004;
+            return {
+              ...d,
+              currentLocation: {
+                lat: Number((d.currentLocation.lat + jitterLat).toFixed(5)),
+                lng: Number((d.currentLocation.lng + jitterLng).toFixed(5)),
+              },
+            };
+          }
+          return d;
+        });
+      });
+    }, 4500);
+
+    return () => clearInterval(flightInterval);
+  }, []);
+
   const progressDroneMission = async (missionId: string, progressDelta: number) => {
     setDroneMissions((prev) =>
       prev.map((m) => {
@@ -931,6 +1088,12 @@ export const EmergencyProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         toggleSharingResponderLocation,
         canViewResponders,
 
+        // State and Region Partitioning
+        selectedState,
+        setSelectedState,
+        selectedRegionId,
+        setSelectedRegionId,
+
         activeScenario,
         setActiveScenario,
         shelters,
@@ -958,6 +1121,7 @@ export const EmergencyProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         reportHazard,
         createDroneSurveyMission,
         createReliefDelivery,
+        deployDroneToLocation,
         progressDroneMission,
         publishAlert,
         createWildlifeCase,

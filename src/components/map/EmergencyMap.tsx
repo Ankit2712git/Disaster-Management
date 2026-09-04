@@ -34,6 +34,7 @@ import {
   Wifi,
   Search,
   SlidersHorizontal,
+  Plane,
 } from 'lucide-react';
 import { useEmergency } from '../../context/EmergencyContext';
 import {
@@ -49,6 +50,7 @@ import { createResQMapTileLayer } from './ResQMapTileLayer';
 import { OfflineMapsModal } from './OfflineMapsModal';
 import { LocationModal } from './LocationModal';
 import { LocationPermissionModal } from './LocationPermissionModal';
+import { DeployDroneModal } from '../operations/DeployDroneModal';
 import {
   getBestAvailableLocation,
   LocationErrorDetail,
@@ -66,9 +68,9 @@ interface EmergencyMapProps {
 const TILE_LAYERS = {
   dark: {
     name: 'Tactical Dark',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; OpenStreetMap contributors, &copy; CARTO',
-    maxZoom: 19,
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+    maxZoom: 16,
   },
   osm: {
     name: 'OpenStreetMap (Streets)',
@@ -125,6 +127,10 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
     toggleSharingResponderLocation,
     canViewResponders,
     currentUser,
+    selectedState,
+    setSelectedState,
+    selectedRegionId,
+    setSelectedRegionId,
   } = useEmergency();
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -136,7 +142,6 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
 
   // Map state
   const [activeTileKey, setActiveTileKey] = useState<'dark' | 'osm' | 'satellite'>('dark');
-  const [selectedRegionId, setSelectedRegionId] = useState<string>('delhi-yamuna');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -144,6 +149,12 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
   const [showLayerMenu, setShowLayerMenu] = useState<boolean>(false);
   const [showOfflineModal, setShowOfflineModal] = useState<boolean>(false);
   const [showLocationModal, setShowLocationModal] = useState<boolean>(false);
+  const [showDeployDroneModal, setShowDeployDroneModal] = useState<boolean>(false);
+  const [deployDroneTargetCoords, setDeployDroneTargetCoords] = useState<{
+    lat: number;
+    lng: number;
+    name?: string;
+  } | undefined>(undefined);
   const [isPinDropMode, setIsPinDropMode] = useState<boolean>(false);
   const [cacheStats, setCacheStats] = useState<{ tileCount: number; sizeMb: number }>({
     tileCount: 0,
@@ -221,9 +232,12 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
 
     mapInstanceRef.current = map;
 
+    let isDestroyed = false;
+
     // Initial bounds
-    setTimeout(() => {
-      if (map) {
+    const boundsTimer = setTimeout(() => {
+      if (isDestroyed || !mapInstanceRef.current || !(map as any)._mapPane) return;
+      try {
         const b = map.getBounds();
         setCurrentMapBounds({
           north: Number(b.getNorth().toFixed(4)),
@@ -231,6 +245,8 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
           east: Number(b.getEast().toFixed(4)),
           west: Number(b.getWest().toFixed(4)),
         });
+      } catch {
+        // ignore if map destroyed
       }
     }, 400);
 
@@ -241,23 +257,29 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
 
     // Track map movements & update bounds
     map.on('moveend', () => {
-      const c = map.getCenter();
-      setMapCenterCoords({
-        lat: Number(c.lat.toFixed(4)),
-        lng: Number(c.lng.toFixed(4)),
-        zoom: map.getZoom(),
-      });
-      const b = map.getBounds();
-      setCurrentMapBounds({
-        north: Number(b.getNorth().toFixed(4)),
-        south: Number(b.getSouth().toFixed(4)),
-        east: Number(b.getEast().toFixed(4)),
-        west: Number(b.getWest().toFixed(4)),
-      });
+      if (isDestroyed || !(map as any)._mapPane) return;
+      try {
+        const c = map.getCenter();
+        setMapCenterCoords({
+          lat: Number(c.lat.toFixed(4)),
+          lng: Number(c.lng.toFixed(4)),
+          zoom: map.getZoom(),
+        });
+        const b = map.getBounds();
+        setCurrentMapBounds({
+          north: Number(b.getNorth().toFixed(4)),
+          south: Number(b.getSouth().toFixed(4)),
+          east: Number(b.getEast().toFixed(4)),
+          west: Number(b.getWest().toFixed(4)),
+        });
+      } catch {
+        // ignore if map destroyed
+      }
     });
 
     // Map click for Pin Drop mode
     map.on('click', (e: L.LeafletMouseEvent) => {
+      if (isDestroyed || !(map as any)._mapPane) return;
       setUserLocation({
         lat: Number(e.latlng.lat.toFixed(5)),
         lng: Number(e.latlng.lng.toFixed(5)),
@@ -268,24 +290,42 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
 
     // Handle container resize
     const resizeObserver = new ResizeObserver(() => {
-      map.invalidateSize();
+      if (isDestroyed || !mapInstanceRef.current || !(mapInstanceRef.current as any)._mapPane) return;
+      try {
+        map.invalidateSize();
+      } catch {
+        // ignore if map unmounted
+      }
     });
-    resizeObserver.observe(mapContainerRef.current);
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
 
     return () => {
+      isDestroyed = true;
+      clearTimeout(boundsTimer);
       resizeObserver.disconnect();
-      map.remove();
       mapInstanceRef.current = null;
+      try {
+        map.stop();
+        map.remove();
+      } catch {
+        // ignore
+      }
     };
   }, []);
 
   // Update Tile Layer when tileKey or offline status changes
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstanceRef.current || !(mapInstanceRef.current as any)._mapPane) return;
     const map = mapInstanceRef.current;
 
     if (tileLayerRef.current) {
-      map.removeLayer(tileLayerRef.current);
+      try {
+        map.removeLayer(tileLayerRef.current);
+      } catch {
+        // ignore
+      }
     }
 
     const tileConfig = TILE_LAYERS[activeTileKey];
@@ -303,6 +343,7 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
   // Switch Indian Disaster Sector
   const handleSelectRegion = (region: IndianRegionConfig) => {
     setSelectedRegionId(region.id);
+    setSelectedState(region.state);
     if (!mapInstanceRef.current) return;
 
     mapInstanceRef.current.flyTo([region.center.lat, region.center.lng], region.zoom, {
@@ -315,6 +356,25 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
       address: `${region.name} (${region.state})`,
     });
   };
+
+  // Fly to region when selectedState changes from other views (Civilian/Operations)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !selectedState || selectedState === 'all') return;
+    const reg = INDIAN_DISASTER_REGIONS.find(
+      (r) => r.state.toLowerCase() === selectedState.toLowerCase()
+    );
+    if (reg && reg.id !== selectedRegionId) {
+      setSelectedRegionId(reg.id);
+      mapInstanceRef.current.flyTo([reg.center.lat, reg.center.lng], reg.zoom, {
+        duration: 1.2,
+      });
+      setUserLocation({
+        lat: reg.center.lat,
+        lng: reg.center.lng,
+        address: `${reg.name} Evacuation Sector, ${reg.state}`,
+      });
+    }
+  }, [selectedState]);
 
   // Robust Multi-Tier Live GPS Geolocation Hook
   const handleGetLiveLocation = useCallback(async () => {
@@ -360,7 +420,7 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
 
   // Render Markers, Polygons, and Active Routes onto Leaflet Layers
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstanceRef.current || !(mapInstanceRef.current as any)._mapPane) return;
     const map = mapInstanceRef.current;
 
     const markersGroup = markersLayerGroupRef.current;
@@ -494,9 +554,14 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
       });
     }
 
-    // 3. Render Shelters
+    // 3. Render Shelters (Filtered to Active State if selected)
     if (layerFilters.shelters) {
-      shelters.forEach((shelter) => {
+      const visibleShelters =
+        selectedState && selectedState !== 'all'
+          ? shelters.filter((s) => s.state?.toLowerCase() === selectedState.toLowerCase())
+          : shelters;
+
+      visibleShelters.forEach((shelter) => {
         const isFull = shelter.status === 'full';
         const isNearlyFull = shelter.status === 'nearly_full';
         const isSelected = selectedShelter?.id === shelter.id;
@@ -691,7 +756,7 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
 
     // 6. Render Rescue Teams (NDRF / SDRF) & Live Responder Updates (Section 11, 12, 13)
     if (layerFilters.rescueTeams) {
-      if (canViewResponders && responderLocations.length > 0) {
+      if (canViewResponders && responderLocations && responderLocations.length > 0) {
         // Render live real-time responder telemetry
         responderLocations.forEach((resp) => {
           const isAlpha = resp.teamId === 'TEAM-ALPHA';
@@ -795,9 +860,14 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
       }
     }
 
-    // 7. Render Drones (UAVs)
+    // 7. Render Drones (UAVs - Filtered to Active State if selected)
     if (layerFilters.drones) {
-      drones.forEach((drone) => {
+      const visibleDrones =
+        selectedState && selectedState !== 'all'
+          ? drones.filter((d) => d.state?.toLowerCase() === selectedState.toLowerCase())
+          : drones;
+
+      visibleDrones.forEach((drone) => {
         const droneHtml = `
           <div class="flex items-center justify-center w-6 h-6 rounded-full bg-cyan-950 border-2 border-cyan-400 text-cyan-300 shadow-xl cursor-pointer hover:scale-110 transition-transform">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -817,10 +887,17 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
         });
 
         marker.bindPopup(`
-          <div class="p-2 font-sans text-xs bg-stone-950 text-stone-100 rounded-xl border border-stone-800">
-            <strong class="text-cyan-400 font-mono">${drone.name}</strong>
-            <p class="text-stone-300 text-[11px] mt-0.5">Type: ${drone.type} (${drone.status})</p>
-            <span class="text-[10px] font-mono text-cyan-400 block mt-1">Battery: ${drone.batteryPercent}% | Payload: ${drone.maxPayloadKg}kg</span>
+          <div class="p-2.5 font-sans text-xs bg-stone-950 text-stone-100 rounded-xl border border-cyan-800/80 max-w-xs shadow-xl">
+            <div class="flex items-center justify-between gap-2 border-b border-stone-800 pb-1 mb-1">
+              <strong class="text-cyan-400 font-mono flex items-center gap-1">🛸 ${drone.name}</strong>
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-cyan-950 text-cyan-300 border border-cyan-800">${drone.status}</span>
+            </div>
+            <p class="text-stone-300 text-[11px]">${drone.model} • ${drone.type}</p>
+            <p class="text-stone-400 text-[10px] mt-0.5">Base: ${drone.district || 'State Airbase'}, <strong class="text-stone-200">${drone.state || 'National Fleet'}</strong></p>
+            <div class="grid grid-cols-2 gap-1 mt-1.5 text-[10px] font-mono text-stone-400 bg-stone-900/80 p-1.5 rounded-lg">
+              <div>Battery: <span class="text-cyan-300 font-bold">${drone.batteryPercent}%</span></div>
+              <div>Payload: <span class="text-stone-200 font-bold">${drone.maxPayloadKg} kg</span></div>
+            </div>
           </div>
         `);
 
@@ -829,9 +906,10 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
     }
 
     // 8. Render Active Route Polyline
-    if (layerFilters.route && activeRoute && activeRoute.waypoints.length > 1) {
+    const routeCoords = activeRoute?.pathPoints || activeRoute?.waypoints;
+    if (layerFilters.route && activeRoute && routeCoords && routeCoords.length > 1) {
       // Glow polyline beneath
-      const glowLine = L.polyline(activeRoute.waypoints, {
+      const glowLine = L.polyline(routeCoords, {
         color: '#10b981',
         weight: 8,
         opacity: 0.35,
@@ -840,7 +918,7 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
       });
 
       // Core route polyline
-      const coreLine = L.polyline(activeRoute.waypoints, {
+      const coreLine = L.polyline(routeCoords, {
         color: '#34d399',
         weight: 4,
         opacity: 0.95,
@@ -867,6 +945,7 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
     selectedShelter,
     activeRoute,
     layerFilters,
+    selectedState,
     setSelectedIncident,
     setSelectedShelter,
     onSelectShelter,
@@ -894,24 +973,28 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
 
   // Auto-center in Follow Mode (Section 5)
   useEffect(() => {
-    if (isFollowMode && mapInstanceRef.current) {
+    if (isFollowMode && mapInstanceRef.current && (mapInstanceRef.current as any)._mapPane) {
       const targetLat = liveLocation ? liveLocation.latitude : userLocation.lat;
       const targetLng = liveLocation ? liveLocation.longitude : userLocation.lng;
-      mapInstanceRef.current.panTo([targetLat, targetLng], {
-        animate: true,
-        duration: 0.6,
-      });
+      try {
+        mapInstanceRef.current.panTo([targetLat, targetLng], {
+          animate: true,
+          duration: 0.6,
+        });
+      } catch {
+        // ignore if map unmounted
+      }
     }
   }, [isFollowMode, liveLocation, userLocation]);
 
   return (
     <div
-      className={`relative w-full ${
-        isFullscreen ? 'fixed inset-0 z-50 h-screen bg-stone-950' : heightClass
+      className={`relative w-full isolate ${
+        isFullscreen ? 'fixed inset-0 z-[2000] h-screen bg-stone-950' : heightClass
       } rounded-2xl overflow-hidden border border-stone-800 bg-stone-950 font-sans shadow-2xl flex flex-col`}
     >
       {/* Top Floating Tactical Header Bar */}
-      <div className="absolute top-3 left-3 right-3 z-[400] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <div className="absolute top-3 left-3 right-3 z-30 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         {/* Left Sector Switcher */}
         <div className="flex items-center gap-1.5 pointer-events-auto bg-stone-950/90 backdrop-blur-md p-1.5 rounded-xl border border-stone-800 shadow-xl max-w-full overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1 px-2 py-1 bg-amber-500/10 rounded-lg text-amber-400 text-xs font-mono font-bold flex-shrink-0">
@@ -922,10 +1005,16 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
           <select
             value={selectedRegionId}
             onChange={(e) => {
-              const r = INDIAN_DISASTER_REGIONS.find((reg) => reg.id === e.target.value);
-              if (r) handleSelectRegion(r);
+              const val = e.target.value;
+              setSelectedRegionId(val);
+              if (val === 'live-gps') {
+                handleGetLiveLocation();
+              } else {
+                const r = INDIAN_DISASTER_REGIONS.find((reg) => reg.id === val);
+                if (r) handleSelectRegion(r);
+              }
             }}
-            className="bg-stone-900 border border-stone-700 text-xs font-mono font-bold text-stone-100 rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500"
+            className="bg-stone-900 border border-stone-700 text-xs font-mono font-bold text-stone-100 rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500 cursor-pointer"
           >
             {INDIAN_DISASTER_REGIONS.map((region) => (
               <option key={region.id} value={region.id}>
@@ -960,6 +1049,23 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
           >
             <MapPin className="w-3.5 h-3.5 text-sky-400" />
             <span className="hidden md:inline">Pick / Pin</span>
+          </button>
+
+          {/* Quick Deploy Drone to Map Button */}
+          <button
+            onClick={() => {
+              setDeployDroneTargetCoords({
+                lat: userLocation.lat,
+                lng: userLocation.lng,
+                name: userLocation.address,
+              });
+              setShowDeployDroneModal(true);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/80 border border-cyan-700 hover:border-cyan-400 text-cyan-300 hover:text-cyan-100 text-xs font-mono font-bold transition-all active:scale-95 shadow-md"
+            title="Deploy State Drone to Current Coordinates or Custom Target"
+          >
+            <Plane className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Deploy UAV</span>
           </button>
         </div>
 
@@ -1046,19 +1152,19 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
 
       {/* Disaster Proximity Warning Alert Banner (Section 15) */}
       {hazardWarningProximity && (
-        <div className="absolute top-16 left-3 right-3 z-[430] flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-red-950/95 border-2 border-red-600 text-red-100 text-xs font-mono shadow-2xl backdrop-blur-md animate-in fade-in">
+        <div className="absolute top-16 left-3 right-3 z-20 flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-red-950/95 border-2 border-red-600 text-red-100 text-xs font-mono shadow-2xl backdrop-blur-md animate-in fade-in">
           <div className="flex items-center gap-2.5">
             <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0 animate-pulse" />
             <div>
               <span className="font-bold text-white uppercase">
-                {hazardWarningProximity.isInside ? '🚨 DANGER: INSIDE HAZARD ZONE' : '⚠ HAZARD PROXIMITY ALERT'}:
+                {hazardWarningProximity.inZone ? '🚨 DANGER: INSIDE HAZARD ZONE' : '⚠ HAZARD PROXIMITY ALERT'}:
               </span>{' '}
               <span>
-                {hazardWarningProximity.isInside
-                  ? `You are inside active ${hazardWarningProximity.hazard.disasterType} zone "${hazardWarningProximity.hazard.name}"! Evacuate immediately.`
-                  : `You are ${Math.round(hazardWarningProximity.distanceMeters)}m from ${hazardWarningProximity.hazard.disasterType} zone "${hazardWarningProximity.hazard.name}".`}
+                {hazardWarningProximity.inZone
+                  ? `You are inside active ${hazardWarningProximity.disasterType || 'hazard'} zone "${hazardWarningProximity.hazardName}"! Evacuate immediately.`
+                  : `You are ${Math.round(hazardWarningProximity.distanceMeters)}m from ${hazardWarningProximity.disasterType || 'hazard'} zone "${hazardWarningProximity.hazardName}".`}
               </span>
-              {hazardWarningProximity.hazard.isModelEstimate && (
+              {hazardWarningProximity.isModelEstimate && (
                 <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-900/80 text-amber-200 text-[10px] border border-amber-600">
                   AI Spread Prediction (Model Estimate)
                 </span>
@@ -1067,7 +1173,7 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
           </div>
           <button
             onClick={() => {
-              if (mapInstanceRef.current && hazardWarningProximity.hazard.coordinates.length > 0) {
+              if (mapInstanceRef.current && hazardWarningProximity.hazard?.coordinates?.length) {
                 const [firstLat, firstLng] = hazardWarningProximity.hazard.coordinates[0];
                 mapInstanceRef.current.flyTo([firstLat, firstLng], 14, { duration: 1.2 });
               }

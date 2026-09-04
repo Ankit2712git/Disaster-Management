@@ -33,6 +33,14 @@ export interface Shelter {
   lastUpdated: string;
   petFriendly: boolean;
   medicalFacilityOnsite: boolean;
+  state?: string;
+  district?: string;
+  supplies?: {
+    water: string;
+    food: string;
+    cots: string;
+    generatorFuel: string;
+  };
 }
 
 export interface HazardZone {
@@ -169,12 +177,30 @@ export interface Drone {
   capabilities: string[];
   maxPayloadKg: number;
   currentMissionId?: string;
+  state: string;
+  district?: string;
+}
+
+export interface DeployDroneParams {
+  droneId: string;
+  missionType: 'survey' | 'relief_delivery';
+  targetLocation: { lat: number; lng: number; name?: string };
+  state?: string;
+  payload?: {
+    item: string;
+    quantity: string;
+    urgency: 'high' | 'critical' | 'standard';
+    recipientIncidentId?: string;
+  };
+  surveyAreaKm2?: number;
+  operatorNotes?: string;
 }
 
 export interface DroneMission {
   id: string;
   droneId: string;
   droneName: string;
+  state?: string;
   missionType: 'survey' | 'relief_delivery';
   status: 'pending' | 'in_progress' | 'completed' | 'aborted';
   progress: number; // 0 to 100
@@ -277,6 +303,7 @@ export interface CandidateRoute {
   isRecommended: boolean;
   hazardWarnings: string[];
   pathPoints: [number, number][];
+  waypoints?: [number, number][];
   confidenceScore: number;
   explanation: string;
 }

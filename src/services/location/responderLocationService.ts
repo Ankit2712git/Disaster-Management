@@ -159,6 +159,7 @@ export class MockRealtimeLocationService implements RealtimeLocationService {
   }
 
   public seedFromTeams(teams: RescueTeam[], baseLat = 28.6653, baseLng = 77.2410): void {
+    if (!teams || teams.length === 0) return;
     this.responders = teams.map((t, i) => {
       let icon = '🚑';
       if (t.specialization === 'Fire Evacuation') icon = '🚒';

@@ -83,7 +83,7 @@ export function rankSheltersAndRoutes(
   allRoutes: CandidateRoute[];
   explanation: string;
 } {
-  if (!shelters.length) {
+  if (!shelters || !shelters.length) {
     return {
       recommendedShelter: null,
       recommendedRoute: null,
@@ -105,11 +105,11 @@ export function rankSheltersAndRoutes(
     // Realistic walking speed in evacuation condition: ~4.5 km/h
     const durationMinutes = Math.max(4, Math.round((distanceKm / 4.5) * 60));
 
-    const { points, warnings } = generateRouteWaypoints(userLocation, shelter.location, blockages);
+    const { points, warnings } = generateRouteWaypoints(userLocation, shelter.location, blockages || []);
 
     // Hazard proximity check
-    for (const hazard of hazards) {
-      for (const coord of hazard.coordinates) {
+    for (const hazard of (hazards || [])) {
+      for (const coord of (hazard.coordinates || [])) {
         const d = calculateDistanceKm(shelter.location.lat, shelter.location.lng, coord[0], coord[1]);
         if (d < 0.8) {
           const w = `⚠ ${hazard.name} is within 800m of this shelter zone.`;
@@ -144,6 +144,7 @@ export function rankSheltersAndRoutes(
       isRecommended: false,
       hazardWarnings: warnings,
       pathPoints: points,
+      waypoints: points,
       confidenceScore: Math.max(0.2, Number(confidenceScore.toFixed(2))),
       explanation,
     });
@@ -167,7 +168,7 @@ export function rankSheltersAndRoutes(
     const statusDiff = scoreStatus(shelterB.status) - scoreStatus(shelterA.status);
     if (statusDiff !== 0) return statusDiff;
 
-    const warningDiff = a.hazardWarnings.length - b.hazardWarnings.length;
+    const warningDiff = (a.hazardWarnings?.length || 0) - (b.hazardWarnings?.length || 0);
     if (warningDiff !== 0) return warningDiff;
 
     return a.distanceKm - b.distanceKm;

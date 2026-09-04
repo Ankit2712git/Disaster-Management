@@ -13,6 +13,8 @@ import {
   MapLayer,
   User,
 } from '../types';
+import { ALL_INDIAN_REGIONS, REAL_INDIAN_SHELTERS } from './indianSheltersData';
+import { ALL_INDIAN_STATE_DRONES, INITIAL_STATE_DRONE_MISSIONS } from './indianDronesData';
 
 export interface IndianRegionConfig {
   id: string;
@@ -24,62 +26,7 @@ export interface IndianRegionConfig {
   description: string;
 }
 
-export const INDIAN_DISASTER_REGIONS: IndianRegionConfig[] = [
-  {
-    id: 'delhi-yamuna',
-    name: 'Delhi NCR — Yamuna Flood Basin',
-    state: 'National Capital Territory of Delhi',
-    center: { lat: 28.6692, lng: 77.2315 },
-    zoom: 13,
-    scenario: 'flood',
-    description: 'Yamuna river water level breached 208.66m danger mark following Hathnikund barrage discharge. Low-lying riverbeds, Kashmere Gate & Mayur Vihar inundated.',
-  },
-  {
-    id: 'kerala-wayanad',
-    name: 'Wayanad — Western Ghats Landslide Corridor',
-    state: 'Kerala',
-    center: { lat: 11.5385, lng: 76.1722 },
-    zoom: 13,
-    scenario: 'landslide',
-    description: 'Catastrophic debris flow and multiple landslides in Meppadi, Chooralmala and Mundakkai tea estates following extreme 48-hour monsoon downpour.',
-  },
-  {
-    id: 'mumbai-coastal',
-    name: 'Mumbai — Mithi River & Coastal High Tide',
-    state: 'Maharashtra',
-    center: { lat: 19.0760, lng: 72.8777 },
-    zoom: 13,
-    scenario: 'flood',
-    description: 'Extreme cloudburst coinciding with 4.87m astronomical high tide causing Mithi river overflow across Kurla, Sion and Western Express Highway.',
-  },
-  {
-    id: 'odisha-cyclone',
-    name: 'Odisha Coastal Belt — Puri & Paradip',
-    state: 'Odisha',
-    center: { lat: 19.8135, lng: 85.8312 },
-    zoom: 12,
-    scenario: 'cyclone',
-    description: 'Very Severe Cyclonic Storm approaching Bay of Bengal coast with 150 km/h wind gusts and 2.5m storm surge inundating coastal hamlets.',
-  },
-  {
-    id: 'assam-brahmaputra',
-    name: 'Assam — Brahmaputra Basin & Kaziranga',
-    state: 'Assam',
-    center: { lat: 26.6500, lng: 93.3500 },
-    zoom: 12,
-    scenario: 'flood',
-    description: 'Brahmaputra river flowing 1.8m above danger level. 85% of Kaziranga National Park submerged; wildlife migrating across NH-715 toward Karbi Anglong hills.',
-  },
-  {
-    id: 'uttarakhand-cloudburst',
-    name: 'Uttarakhand — Himalayan Flash Flood & Landslides',
-    state: 'Uttarakhand',
-    center: { lat: 30.1345, lng: 78.3050 },
-    zoom: 12,
-    scenario: 'cloudburst',
-    description: 'Localized cloudburst in Alaknanda-Ganga catchment triggered flash floods, washed out mountain bridges and blocked Rishikesh-Badrinath National Highway.',
-  },
-];
+export const INDIAN_DISASTER_REGIONS: IndianRegionConfig[] = ALL_INDIAN_REGIONS;
 
 export const INITIAL_USERS: User[] = [
   { id: 'usr-civilian', name: 'Aarav Sharma', role: 'civilian', phone: '+91 98101 23456' },
@@ -94,128 +41,7 @@ export const INITIAL_USERS: User[] = [
 // Default map center: Delhi Yamuna River Basin (Civil Lines / Kashmere Gate / Yamuna Bazar)
 export const MAP_CENTER = { lat: 28.6692, lng: 77.2315 };
 
-export const INITIAL_SHELTERS: Shelter[] = [
-  {
-    id: 'shelter-a',
-    name: 'Kendriya Vidyalaya No. 1 Relief Centre (Shelter A)',
-    location: { lat: 28.6750, lng: 77.2280 },
-    address: 'Near Civil Lines Metro Station, North Delhi, Delhi 110054',
-    capacity: 450,
-    currentOccupancy: 450, // 100% full
-    status: 'full',
-    accessibilityInfo: 'Ground floor ramp, 60kVA generator backup operational, RO clean drinking water plant active',
-    services: ['Hot Meals / Langar', 'First Aid Triage', 'Clean RO Water', 'Phone Charging', 'Blankets & Tarpaulins'],
-    contactPhone: '+91 11 2398 4411',
-    lastUpdated: '3 minutes ago',
-    petFriendly: false,
-    medicalFacilityOnsite: true,
-  },
-  {
-    id: 'shelter-b',
-    name: 'District Sports Complex & Community Stadium (Shelter B)',
-    location: { lat: 28.6620, lng: 77.2420 },
-    address: 'Ring Road Near ISBT Kashmiri Gate, Central Delhi, Delhi 110006',
-    capacity: 900,
-    currentOccupancy: 380,
-    status: 'open',
-    accessibilityInfo: 'Wide ramp entrances, dedicated medical ward, 24/7 oxygen cylinder concentrators',
-    services: ['Free Ration & Meals', 'Full Medical Camp (108 EMRI)', 'Infant & Maternity Care', 'Pet Care Corner', 'Satellite Comms Hub'],
-    contactPhone: '+91 11 2386 5522',
-    lastUpdated: 'Just now',
-    petFriendly: true,
-    medicalFacilityOnsite: true,
-  },
-  {
-    id: 'shelter-c',
-    name: 'Indian Red Cross Society Bhavan (Shelter C)',
-    location: { lat: 28.6795, lng: 77.2185 },
-    address: 'Red Cross Marg, Sector 5, Timarpur, Delhi 110054',
-    capacity: 300,
-    currentOccupancy: 275,
-    status: 'nearly_full',
-    accessibilityInfo: 'Wheelchair ramp, disabled-friendly restrooms, emergency solar lighting',
-    services: ['Dry Ration Kits', 'Basic Medical Care', 'Cots & Blankets', 'Psychological Support'],
-    contactPhone: '+91 11 2371 6441',
-    lastUpdated: '12 minutes ago',
-    petFriendly: false,
-    medicalFacilityOnsite: false,
-  },
-  {
-    id: 'shelter-d',
-    name: 'Multipurpose Community Centre & Flood Relief Camp (Shelter D)',
-    location: { lat: 28.6540, lng: 77.2510 },
-    address: 'Geeta Colony Ring Road Approach, East Delhi 110031',
-    capacity: 1500,
-    currentOccupancy: 520,
-    status: 'open',
-    accessibilityInfo: 'Multi-gate intake, Indian Army mobile field hospital operational',
-    services: ['Army Field Hospital', 'NDRF Boat Evac Reception', 'Bedding & Tarps', 'Hot Meals & Baby Formula', 'UAV Landing Helipad'],
-    contactPhone: '+91 11 2244 8899',
-    lastUpdated: '8 minutes ago',
-    petFriendly: true,
-    medicalFacilityOnsite: true,
-  },
-  {
-    id: 'shelter-e',
-    name: 'Government Sarvodaya Co-ed Vidyalaya (Shelter E)',
-    location: { lat: 28.6850, lng: 77.2390 },
-    address: 'Mall Road, Near GTB Nagar Metro Station, North Delhi 110009',
-    capacity: 350,
-    currentOccupancy: 110,
-    status: 'open',
-    accessibilityInfo: 'Ground level entry, uninterrupted emergency generator power',
-    services: ['Food / Water', 'Mobile Device Charging', 'Clean Washrooms', 'Drinking Water Tanker'],
-    contactPhone: '+91 11 2765 1100',
-    lastUpdated: '15 minutes ago',
-    petFriendly: true,
-    medicalFacilityOnsite: false,
-  },
-  {
-    id: 'shelter-f',
-    name: 'St. Stephen Hospital Old Wing (Shelter F)',
-    location: { lat: 28.6635, lng: 77.2150 },
-    address: 'Tis Hazari, Near Court Complex, Delhi 110054',
-    capacity: 250,
-    currentOccupancy: 250,
-    status: 'full',
-    accessibilityInfo: 'Full hospital ramps, reached maximum triage density limit',
-    services: ['Major Trauma Center', 'Intensive Care Unit'],
-    contactPhone: '+91 11 2396 6021',
-    lastUpdated: '5 minutes ago',
-    petFriendly: false,
-    medicalFacilityOnsite: true,
-  },
-  {
-    id: 'shelter-g',
-    name: 'Gurudwara Majnu Ka Tilla Community Relief Hall (Shelter G)',
-    location: { lat: 28.7020, lng: 77.2285 },
-    address: 'Ring Road, Civil Lines Outer, Delhi 110054',
-    capacity: 800,
-    currentOccupancy: 220,
-    status: 'open',
-    accessibilityInfo: 'Universal ramp accessibility, continuous 24/7 Guru Ka Langar',
-    services: ['24/7 Hot Langar Meals', 'Clean Drinking Water', 'Dry Clothes', 'First Aid', 'Night Shelter'],
-    contactPhone: '+91 11 2381 2233',
-    lastUpdated: '20 minutes ago',
-    petFriendly: true,
-    medicalFacilityOnsite: false,
-  },
-  {
-    id: 'shelter-h',
-    name: 'Primary Health Centre (PHC) Emergency Camp (Shelter H)',
-    location: { lat: 28.6710, lng: 77.2550 },
-    address: 'Shastri Park Main Road, Seelampur District, Delhi 110053',
-    capacity: 200,
-    currentOccupancy: 185,
-    status: 'nearly_full',
-    accessibilityInfo: 'Dedicated medical beds, oxygen cylinders, antivenom stock',
-    services: ['Doctor On Duty', 'Waterborne Disease Prophylaxis', 'ORS & IV Fluids'],
-    contactPhone: '+91 11 2218 9010',
-    lastUpdated: '7 minutes ago',
-    petFriendly: false,
-    medicalFacilityOnsite: true,
-  },
-];
+export const INITIAL_SHELTERS: Shelter[] = REAL_INDIAN_SHELTERS;
 
 export const INITIAL_HAZARDS: HazardZone[] = [
   {
@@ -496,80 +322,9 @@ export const INITIAL_RESCUE_TEAMS: RescueTeam[] = [
   },
 ];
 
-export const INITIAL_DRONES: Drone[] = [
-  {
-    id: 'drone-101',
-    name: 'IdeaForge Netra V4+ (UAV-01)',
-    model: 'IdeaForge Netra Pro RTK / Dual Optical',
-    type: 'GIS Survey & LiDAR',
-    status: 'available',
-    batteryPercent: 94,
-    currentLocation: { lat: 28.6620, lng: 77.2420 },
-    baseLocation: { lat: 28.6620, lng: 77.2420 },
-    capabilities: ['Thermal Inundation Sensor', 'LiDAR Terrain Mapping', 'High-Res Orthomosaic Video'],
-    maxPayloadKg: 3.5,
-  },
-  {
-    id: 'drone-102',
-    name: 'Garuda Heavy Lifter (UAV-02)',
-    model: 'Garuda Aerospace Disaster Lifter X8',
-    type: 'Heavy Lift Relief',
-    status: 'available',
-    batteryPercent: 88,
-    currentLocation: { lat: 28.6540, lng: 77.2510 },
-    baseLocation: { lat: 28.6540, lng: 77.2510 },
-    capabilities: ['15kg Food/Medicine Drop Winch', 'Emergency Megaphone System', 'Night Searchlight', 'Inflatable Life Buoy Drop'],
-    maxPayloadKg: 15.0,
-  },
-  {
-    id: 'drone-103',
-    name: 'Asteria A400 Recon (UAV-03)',
-    model: 'Asteria Aerospace A400 Tactical',
-    type: 'Thermal Recon',
-    status: 'surveying',
-    batteryPercent: 62,
-    currentLocation: { lat: 28.6740, lng: 77.2370 },
-    baseLocation: { lat: 28.6620, lng: 77.2420 },
-    capabilities: ['FLIR 640 Thermal Night Sensor', 'Flood Depth Optical Estimator', 'Live Radio Mesh Transmitter'],
-    maxPayloadKg: 4.0,
-  },
-  {
-    id: 'drone-104',
-    name: 'Skye Air MedDrop 104',
-    model: 'Skye Air Arctic Star Multi-Rotor',
-    type: 'Hybrid Fast-Response',
-    status: 'charging',
-    batteryPercent: 35,
-    currentLocation: { lat: 28.6540, lng: 77.2510 },
-    baseLocation: { lat: 28.6540, lng: 77.2510 },
-    capabilities: ['Insulated Blood/Antivenom Cold Box', 'Rapid 50km/h Cruise', 'Automated Parachute Drop'],
-    maxPayloadKg: 5.0,
-  },
-];
+export const INITIAL_DRONES: Drone[] = ALL_INDIAN_STATE_DRONES;
 
-export const INITIAL_DRONE_MISSIONS: DroneMission[] = [
-  {
-    id: 'msn-01',
-    droneId: 'drone-103',
-    droneName: 'Asteria A400 Recon (UAV-03)',
-    missionType: 'survey',
-    status: 'in_progress',
-    progress: 72,
-    targetLocation: { lat: 28.6740, lng: 77.2370, name: 'Yamuna Bazar & Monastery Grid' },
-    surveyArea: {
-      name: 'Yamuna Low-Lying Inundation Sector Survey',
-      polygon: [
-        [28.6700, 77.2320],
-        [28.6800, 77.2350],
-        [28.6760, 77.2440],
-        [28.6660, 77.2390],
-      ],
-      areaKm2: 2.8,
-    },
-    startedAt: '2026-09-03T09:55:00Z',
-    operatorNotes: 'Real-time road submergence analysis. Transmitting live GeoJSON orthomosaic to SEOC mapping grid.',
-  },
-];
+export const INITIAL_DRONE_MISSIONS: DroneMission[] = INITIAL_STATE_DRONE_MISSIONS;
 
 export const INITIAL_ALERTS: Alert[] = [
   {

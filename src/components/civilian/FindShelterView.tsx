@@ -20,6 +20,13 @@ import {
   Compass,
   CornerUpRight,
   ShieldCheck,
+  Search,
+  Phone,
+  Droplets,
+  Utensils,
+  Bed,
+  Fuel,
+  Sparkles,
 } from 'lucide-react';
 import { useEmergency } from '../../context/EmergencyContext';
 import { Shelter, CandidateRoute } from '../../types';
@@ -29,16 +36,20 @@ export const FindShelterView: React.FC = () => {
   const {
     shelters,
     userLocation,
+    setUserLocation,
     calculateShelterRoutes,
     activeRoute,
     setActiveRoute,
     selectedShelter,
     setSelectedShelter,
+    selectedState,
+    setSelectedState,
   } = useEmergency();
 
   const [travelMode, setTravelMode] = useState<'walk' | 'vehicle'>('walk');
   const [filterPetsOnly, setFilterPetsOnly] = useState<boolean>(false);
   const [filterMedicalOnly, setFilterMedicalOnly] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -47,6 +58,15 @@ export const FindShelterView: React.FC = () => {
   const { recommendedShelter, recommendedRoute, allRoutes, explanation } = useMemo(() => {
     return calculateShelterRoutes(userLocation);
   }, [calculateShelterRoutes, userLocation]);
+
+  // Available states from real shelters across India
+  const availableStates = useMemo(() => {
+    const states = new Set<string>();
+    shelters.forEach((s) => {
+      if (s.state) states.add(s.state);
+    });
+    return Array.from(states).sort();
+  }, [shelters]);
 
   // Set active route initially if none
   React.useEffect(() => {
@@ -62,11 +82,23 @@ export const FindShelterView: React.FC = () => {
   const closestShelter = shelters.find((s) => s.id === 'shelter-a'); // Kendriya Vidyalaya Relief Hub
   const isClosestFull = closestShelter?.status === 'full';
 
-  const displayedRoutes = allRoutes.filter((r) => {
+  const displayedRoutes = (allRoutes || []).filter((r) => {
     const s = shelters.find((sh) => sh.id === r.destinationShelterId);
     if (!s) return false;
+    // Strict State Isolation: as user changes state, show shelter info of that state only
+    if (selectedState && selectedState !== 'all') {
+      if (s.state?.toLowerCase() !== selectedState.toLowerCase()) return false;
+    }
     if (filterPetsOnly && !s.petFriendly) return false;
     if (filterMedicalOnly && !s.medicalFacilityOnsite) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = s.name.toLowerCase().includes(q);
+      const matchAddr = s.address.toLowerCase().includes(q);
+      const matchDist = s.district ? s.district.toLowerCase().includes(q) : false;
+      const matchState = s.state ? s.state.toLowerCase().includes(q) : false;
+      if (!matchName && !matchAddr && !matchDist && !matchState) return false;
+    }
     return true;
   });
 
@@ -77,31 +109,40 @@ export const FindShelterView: React.FC = () => {
     setCurrentStepIndex(0);
   };
 
+  const handleSetLocationToShelterSector = (s: Shelter) => {
+    setUserLocation({
+      lat: Number((s.location.lat + 0.007).toFixed(4)),
+      lng: Number((s.location.lng + 0.007).toFixed(4)),
+      address: `Civilian Evacuee Sector near ${s.name}, ${s.district || s.state || 'India'}`,
+    });
+    setSelectedShelter(s);
+  };
+
   const navSteps = useMemo(() => {
     if (!activeRoute) return [];
     return [
       {
-        instruction: `Head South from ${userLocation.address} toward designated evac zone`,
+        instruction: `Head South from ${userLocation?.address || 'Current Location'} toward designated evac zone`,
         distance: '400 m',
         detail: 'Clear roadway verified by recent reconnaissance',
       },
       {
         instruction: 'Turn right onto Westridge Evacuation Corridor',
-        distance: `${(activeRoute.distanceKm * 0.4).toFixed(1)} km`,
-        detail: activeRoute.hazardWarnings[0] || 'Roadway verified clear of active hazard fronts',
+        distance: `${((activeRoute.distanceKm || 1) * 0.4).toFixed(1)} km`,
+        detail: activeRoute.hazardWarnings?.[0] || 'Roadway verified clear of active hazard fronts',
       },
       {
         instruction: 'Pass through the designated Emergency Personnel Checkpoint',
-        distance: `${(activeRoute.distanceKm * 0.35).toFixed(1)} km`,
+        distance: `${((activeRoute.distanceKm || 1) * 0.35).toFixed(1)} km`,
         detail: 'First responders stationed to assist civilian flow',
       },
       {
-        instruction: `Arrive safely at ${activeRoute.shelterName}`,
+        instruction: `Arrive safely at ${activeRoute.shelterName || 'Shelter'}`,
         distance: '150 m',
         detail: 'Proceed to reception desk for intake and medical triage',
       },
     ];
-  }, [activeRoute, userLocation.address]);
+  }, [activeRoute, userLocation?.address]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-4 pb-12 font-sans">
@@ -191,7 +232,7 @@ export const FindShelterView: React.FC = () => {
         <EmergencyMap
           heightClass="h-72 sm:h-80"
           onSelectShelter={(shelter) => {
-            const r = allRoutes.find((route) => route.destinationShelterId === shelter.id);
+            const r = allRoutes?.find((route) => route.destinationShelterId === shelter.id);
             if (r) setActiveRoute(r);
           }}
         />
@@ -262,8 +303,8 @@ export const FindShelterView: React.FC = () => {
             </div>
             <div className="bg-stone-950 p-2.5 rounded-xl border border-stone-800">
               <span className="text-stone-500 block text-[10px]">HAZARD INTERSECTIONS</span>
-              <span className={activeRoute.hazardWarnings.length > 0 ? 'text-amber-400 font-bold text-sm' : 'text-emerald-400 font-bold text-sm'}>
-                {activeRoute.hazardWarnings.length === 0 ? '0 Hazards on path' : `${activeRoute.hazardWarnings.length} Warnings`}
+              <span className={(activeRoute.hazardWarnings?.length || 0) > 0 ? 'text-amber-400 font-bold text-sm' : 'text-emerald-400 font-bold text-sm'}>
+                {!activeRoute.hazardWarnings?.length ? '0 Hazards on path' : `${activeRoute.hazardWarnings.length} Warnings`}
               </span>
             </div>
           </div>
@@ -275,12 +316,12 @@ export const FindShelterView: React.FC = () => {
           </div>
 
           {/* Warnings along route */}
-          {activeRoute.hazardWarnings.length > 0 && (
+          {(activeRoute.hazardWarnings?.length || 0) > 0 && (
             <div className="space-y-1.5">
               <span className="text-[11px] font-mono text-amber-400 font-bold uppercase block">
                 Hazards & Detours Noted On This Corridor:
               </span>
-              {activeRoute.hazardWarnings.map((w, i) => (
+              {activeRoute.hazardWarnings?.map((w, i) => (
                 <div key={i} className="p-2 bg-amber-950/40 border border-amber-800/60 rounded-lg text-xs text-amber-200 flex items-start gap-2">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
                   <span>{w}</span>
@@ -399,37 +440,119 @@ export const FindShelterView: React.FC = () => {
         </div>
       )}
 
-      {/* Filter Chips */}
-      <div className="flex items-center gap-2 flex-wrap pt-2">
-        <span className="text-xs text-stone-400 font-mono">Filter Shelters:</span>
-        <button
-          onClick={() => setFilterPetsOnly(!filterPetsOnly)}
-          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-            filterPetsOnly
-              ? 'bg-emerald-950 text-emerald-300 border-emerald-600'
-              : 'bg-stone-900 text-stone-400 border-stone-800 hover:text-stone-200'
-          }`}
-        >
-          🐾 Pet Friendly Only
-        </button>
-        <button
-          onClick={() => setFilterMedicalOnly(!filterMedicalOnly)}
-          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-            filterMedicalOnly
-              ? 'bg-emerald-950 text-emerald-300 border-emerald-600'
-              : 'bg-stone-900 text-stone-400 border-stone-800 hover:text-stone-200'
-          }`}
-        >
-          🏥 Onsite Medical Facility
-        </button>
+      {/* Search & State Filter Controls */}
+      <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 shadow-md space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search shelters by name, district, or city across India..."
+              className="w-full bg-stone-950 border border-stone-800 rounded-xl pl-9 pr-3 py-2 text-xs text-stone-100 placeholder-stone-500 focus:outline-none focus:border-emerald-500 font-sans"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-500 hover:text-stone-300"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* State Dropdown */}
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedState}
+              onChange={(e) => setSelectedState(e.target.value)}
+              className="bg-stone-950 border border-stone-800 text-stone-200 text-xs rounded-xl px-3 py-2 font-mono focus:outline-none focus:border-emerald-500"
+            >
+              <option value="all">🇮🇳 All India Shelters ({shelters.length})</option>
+              {availableStates.map((st) => (
+                <option key={st} value={st}>
+                  {st} ({shelters.filter((s) => s.state === st).length})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Filter Chips & Quick State Pills */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <button
+            onClick={() => setSelectedState('all')}
+            className={`px-2.5 py-1 rounded-full text-xs font-mono transition-colors ${
+              selectedState === 'all'
+                ? 'bg-emerald-600 text-white font-bold'
+                : 'bg-stone-950 text-stone-400 border border-stone-800 hover:text-stone-200'
+            }`}
+          >
+            All India ({shelters.length})
+          </button>
+          {availableStates.slice(0, 7).map((st) => (
+            <button
+              key={st}
+              onClick={() => setSelectedState(st === selectedState ? 'all' : st)}
+              className={`px-2.5 py-1 rounded-full text-xs font-mono transition-colors ${
+                selectedState === st
+                  ? 'bg-emerald-600 text-white font-bold'
+                  : 'bg-stone-950 text-stone-400 border border-stone-800 hover:text-stone-200'
+              }`}
+            >
+              {st}
+            </button>
+          ))}
+          {availableStates.length > 7 && (
+            <span className="text-[10px] text-stone-500 font-mono self-center">
+              +{availableStates.length - 7} more in dropdown
+            </span>
+          )}
+
+          <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-1.5 pt-2 sm:pt-0">
+            <button
+              onClick={() => setFilterPetsOnly(!filterPetsOnly)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                filterPetsOnly
+                  ? 'bg-emerald-950 text-emerald-300 border-emerald-600'
+                  : 'bg-stone-950 text-stone-400 border-stone-800 hover:text-stone-200'
+              }`}
+            >
+              🐾 Pet Friendly
+            </button>
+            <button
+              onClick={() => setFilterMedicalOnly(!filterMedicalOnly)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                filterMedicalOnly
+                  ? 'bg-emerald-950 text-emerald-300 border-emerald-600'
+                  : 'bg-stone-950 text-stone-400 border-stone-800 hover:text-stone-200'
+              }`}
+            >
+              🏥 Medical Triage
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Candidate & Alternative Shelters Directory */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-stone-200 uppercase tracking-wide font-mono flex items-center justify-between">
-          <span>All Nearby Emergency Shelters ({displayedRoutes.length})</span>
-          <span className="text-[11px] text-stone-500 font-normal">Ranked by Capacity & Road Safety</span>
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-stone-200 uppercase tracking-wide font-mono">
+              {selectedState === 'all' ? 'All Indian Emergency Shelters' : `${selectedState} Shelters`} ({displayedRoutes.length})
+            </h3>
+            {selectedState !== 'all' && (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold">
+                State Filter Active: {selectedState} Only
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] text-stone-400 font-mono">
+            {selectedState !== 'all' ? `Displaying real shelters in ${selectedState}` : 'Ranked by proximity & verified capacity'}
+          </span>
+        </div>
 
         <div className="grid grid-cols-1 gap-3">
           {displayedRoutes.map((route) => {
@@ -441,6 +564,7 @@ export const FindShelterView: React.FC = () => {
             const isNearlyFull = shelter.status === 'nearly_full';
             const openSpaces = Math.max(0, shelter.capacity - shelter.currentOccupancy);
             const percentFilled = Math.min(100, Math.round((shelter.currentOccupancy / shelter.capacity) * 100));
+            const isDistantSector = route.distanceKm > 25;
 
             return (
               <div
@@ -456,6 +580,11 @@ export const FindShelterView: React.FC = () => {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex-1 min-w-[240px]">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {shelter.state && (
+                        <span className="px-2 py-0.5 rounded bg-sky-950 border border-sky-800 text-sky-400 font-mono font-bold text-[10px] uppercase">
+                          {shelter.state} {shelter.district ? `• ${shelter.district}` : ''}
+                        </span>
+                      )}
                       <h4 className="text-sm font-bold text-stone-100">
                         {shelter.name}
                       </h4>
@@ -493,8 +622,39 @@ export const FindShelterView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Tags */}
-                    <div className="mt-3 flex items-center gap-2 flex-wrap text-[10px]">
+                    {/* Supplies Stock Information */}
+                    {shelter.supplies && (
+                      <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-w-lg text-[10px] font-mono">
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-stone-950/80 border border-stone-800">
+                          <Droplets className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                          <span className="text-stone-300 truncate">{shelter.supplies.water}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-stone-950/80 border border-stone-800">
+                          <Utensils className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                          <span className="text-stone-300 truncate">{shelter.supplies.food}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-stone-950/80 border border-stone-800">
+                          <Bed className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                          <span className="text-stone-300 truncate">{shelter.supplies.cots}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-stone-950/80 border border-stone-800">
+                          <Fuel className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+                          <span className="text-stone-300 truncate">{shelter.supplies.generatorFuel}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Services & Contact */}
+                    <div className="mt-2.5 flex items-center gap-2 flex-wrap text-[10px]">
+                      {shelter.contactPhone && (
+                        <a
+                          href={`tel:${shelter.contactPhone}`}
+                          className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-800/80 text-amber-300 hover:text-amber-200 font-mono font-bold flex items-center gap-1"
+                        >
+                          <Phone className="w-3 h-3" />
+                          <span>{shelter.contactPhone}</span>
+                        </a>
+                      )}
                       {shelter.petFriendly && (
                         <span className="px-2 py-0.5 rounded bg-stone-800 text-stone-300 font-medium">
                           🐾 Pets Allowed
@@ -513,33 +673,45 @@ export const FindShelterView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right side navigation CTA */}
+                  {/* Right side navigation & sector jump CTA */}
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <div className="text-right font-mono">
                       <div className="text-sm font-bold text-stone-200">{route.distanceKm} km</div>
-                      <div className="text-[11px] text-stone-400">~{route.durationMinutes} min walk</div>
+                      <div className="text-[11px] text-stone-400">~{route.durationMinutes} min ({travelMode})</div>
                     </div>
 
-                    <button
-                      onClick={() => handleSelectShelterRoute(route)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow ${
-                        isCurrentActive
-                          ? 'bg-emerald-600 text-white'
-                          : isFull
-                          ? 'bg-stone-800 hover:bg-stone-700 text-stone-300'
-                          : 'bg-stone-800 hover:bg-emerald-600 text-stone-200 hover:text-white'
-                      }`}
-                    >
-                      {isCurrentActive ? (
-                        <>
-                          <CheckCircle className="w-3.5 h-3.5" /> Selected Route
-                        </>
-                      ) : (
-                        <>
-                          Select Route <ChevronRight className="w-3.5 h-3.5" />
-                        </>
+                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5">
+                      {isDistantSector && (
+                        <button
+                          onClick={() => handleSetLocationToShelterSector(shelter)}
+                          className="px-2.5 py-1.5 rounded-xl bg-stone-800 hover:bg-sky-900 text-sky-300 hover:text-white font-mono text-[11px] flex items-center gap-1 border border-stone-700"
+                          title="Set current GPS to this sector and recalculate local evacuation route"
+                        >
+                          <MapPin className="w-3 h-3" /> Evacuate Here
+                        </button>
                       )}
-                    </button>
+
+                      <button
+                        onClick={() => handleSelectShelterRoute(route)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow ${
+                          isCurrentActive
+                            ? 'bg-emerald-600 text-white'
+                            : isFull
+                            ? 'bg-stone-800 hover:bg-stone-700 text-stone-300'
+                            : 'bg-stone-800 hover:bg-emerald-600 text-stone-200 hover:text-white'
+                        }`}
+                      >
+                        {isCurrentActive ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" /> Selected Route
+                          </>
+                        ) : (
+                          <>
+                            Select Route <ChevronRight className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
