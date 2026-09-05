@@ -197,7 +197,13 @@ export const DeployDroneModal: React.FC<DeployDroneModalProps> = ({
   if (!isOpen) return null;
 
   const selectedDrone = drones.find((d) => d.id === selectedDroneId);
-  const availableStates = Array.from(new Set(drones.map((d) => d.state))).sort();
+  const statesSet = new Set<string>();
+  drones.forEach((d) => {
+    if (d.state) statesSet.add(d.state);
+  });
+  const availableStates: string[] = [];
+  statesSet.forEach((s) => availableStates.push(s));
+  availableStates.sort();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">

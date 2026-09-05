@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ShieldAlert,
   Radio,
@@ -16,11 +16,19 @@ import {
   Sparkles,
   Download,
   Filter,
+  Plane,
+  MapPin,
+  Building,
+  Navigation,
+  ExternalLink,
+  ChevronRight,
+  Battery,
 } from 'lucide-react';
 import { useEmergency } from '../../context/EmergencyContext';
 import { Incident, Shelter, Drone, IncidentPriority, IncidentStatus } from '../../types';
 import { EmergencyMap } from '../map/EmergencyMap';
 import { DroneTelemetryWidget } from './DroneTelemetryWidget';
+import { DeployDroneModal } from './DeployDroneModal';
 
 export const OperationsDashboard: React.FC = () => {
   const {
@@ -31,6 +39,8 @@ export const OperationsDashboard: React.FC = () => {
     wildlifeCases,
     rescueTeams,
     currentUser,
+    selectedState,
+    setSelectedState,
     updateIncidentStatus,
     assignRescueTeam,
     updateShelterCapacity,
@@ -43,6 +53,49 @@ export const OperationsDashboard: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<
     'incidents' | 'ai_assistant' | 'drones' | 'shelters' | 'wildlife' | 'audit'
   >('incidents');
+
+  // Deploy Drone Modal State
+  const [showDeployDroneModal, setShowDeployDroneModal] = useState<boolean>(false);
+  const [deployDroneTarget, setDeployDroneTarget] = useState<{
+    lat: number;
+    lng: number;
+    name?: string;
+  } | undefined>(undefined);
+  const [deployDronePreselectedId, setDeployDronePreselectedId] = useState<string | undefined>(undefined);
+
+  // Available States in Indian Network
+  const availableStates = useMemo(() => {
+    const statesSet = new Set<string>();
+    shelters.forEach((s) => {
+      if (s.state) statesSet.add(s.state);
+    });
+    drones.forEach((d) => {
+      if (d.state) statesSet.add(d.state);
+    });
+    return Array.from(statesSet).sort();
+  }, [shelters, drones]);
+
+  // Derived State-Filtered Drones
+  const stateDrones = useMemo(() => {
+    if (!selectedState || selectedState === 'all') return drones;
+    return drones.filter((d) => d.state?.toLowerCase() === selectedState.toLowerCase());
+  }, [drones, selectedState]);
+
+  // Derived State-Filtered Drone Missions
+  const stateDroneMissions = useMemo(() => {
+    if (!selectedState || selectedState === 'all') return droneMissions;
+    return droneMissions.filter(
+      (m) =>
+        m.state?.toLowerCase() === selectedState.toLowerCase() ||
+        stateDrones.some((d) => d.id === m.droneId)
+    );
+  }, [droneMissions, stateDrones, selectedState]);
+
+  // Derived State-Filtered Shelters
+  const stateShelters = useMemo(() => {
+    if (!selectedState || selectedState === 'all') return shelters;
+    return shelters.filter((s) => s.state?.toLowerCase() === selectedState.toLowerCase());
+  }, [shelters, selectedState]);
 
   // AI Prompt State
   const [aiPrompt, setAiPrompt] = useState<string>(
@@ -163,24 +216,24 @@ export const OperationsDashboard: React.FC = () => {
             onClick={() => setActiveSubTab('drones')}
             className={`px-3 py-1.5 rounded-lg font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 ${
               activeSubTab === 'drones'
-                ? 'bg-amber-600 text-stone-950 shadow'
-                : 'bg-stone-950 text-stone-400 hover:text-stone-200 border border-stone-800'
+                ? 'bg-cyan-600 text-stone-950 shadow'
+                : 'bg-stone-950 text-stone-400 hover:text-cyan-300 border border-stone-800'
             }`}
           >
             <PlaneTakeoff className="w-3.5 h-3.5" />
-            Drone Fleet ({drones.length})
+            Drone Fleet ({stateDrones.length})
           </button>
 
           <button
             onClick={() => setActiveSubTab('shelters')}
             className={`px-3 py-1.5 rounded-lg font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 ${
               activeSubTab === 'shelters'
-                ? 'bg-amber-600 text-stone-950 shadow'
-                : 'bg-stone-950 text-stone-400 hover:text-stone-200 border border-stone-800'
+                ? 'bg-emerald-600 text-stone-950 shadow'
+                : 'bg-stone-950 text-stone-400 hover:text-emerald-300 border border-stone-800'
             }`}
           >
             <Home className="w-3.5 h-3.5" />
-            Shelter Logistics ({shelters.length})
+            Shelter Logistics ({stateShelters.length})
           </button>
 
           <button
@@ -206,6 +259,42 @@ export const OperationsDashboard: React.FC = () => {
             <FileText className="w-3.5 h-3.5" />
             Audit Logs ({auditLogs.length})
           </button>
+        </div>
+
+        {/* State Jurisdiction Filter Bar */}
+        <div className="mt-3 pt-3 border-t border-stone-800/80 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2 py-1 rounded bg-stone-950 border border-stone-700 text-stone-300 font-mono text-xs font-bold flex items-center gap-1.5">
+              <Building className="w-3.5 h-3.5 text-amber-400" />
+              <span>STATE JURISDICTION:</span>
+            </span>
+            <select
+              value={selectedState}
+              onChange={(e) => setSelectedState(e.target.value)}
+              className="bg-stone-950 border border-stone-700 hover:border-amber-500 text-stone-100 text-xs font-mono font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:border-amber-500 cursor-pointer shadow-inner"
+            >
+              <option value="all">🇮🇳 All India (National Overview)</option>
+              {availableStates.map((st) => (
+                <option key={st} value={st}>
+                  📍 {st} (SDMA Ops • {shelters.filter((s) => s.state?.toLowerCase() === st.toLowerCase()).length} Shelters • {drones.filter((d) => d.state?.toLowerCase() === st.toLowerCase()).length} UAVs)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setDeployDroneTarget(undefined);
+                setDeployDronePreselectedId(undefined);
+                setShowDeployDroneModal(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-mono font-bold shadow-lg transition-all active:scale-95"
+            >
+              <Plane className="w-3.5 h-3.5" />
+              <span>Deploy Drone to Any Location</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -521,102 +610,225 @@ export const OperationsDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: DRONE FLEET & MISSIONS */}
+      {/* TAB 3: DRONE FLEET & MISSIONS (STATE ISOLATED) */}
       {activeSubTab === 'drones' && (
         <div className="space-y-5">
-          {/* Drone Telemetry Recharts Analytics Widget */}
-          <DroneTelemetryWidget drones={drones} droneMissions={droneMissions} />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {drones.map((drone) => (
-              <div key={drone.id} className="bg-stone-900 border border-stone-800 rounded-2xl p-4 space-y-3 shadow-md">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-cyan-950 text-cyan-400 rounded-xl border border-cyan-800">
-                      <PlaneTakeoff className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-stone-100">{drone.name}</h3>
-                      <span className="text-xs font-mono text-stone-400">{drone.model}</span>
-                    </div>
-                  </div>
-
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
-                      drone.status === 'airborne'
-                        ? 'bg-cyan-950 text-cyan-300 border border-cyan-700 animate-pulse'
-                        : 'bg-stone-800 text-stone-400'
-                    }`}
-                  >
-                    {drone.status}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-stone-950 p-2.5 rounded-xl border border-stone-800">
-                  <div>
-                    <span className="text-stone-500 block text-[10px]">BATTERY</span>
-                    <span className="text-cyan-400 font-bold">{drone.batteryPercent}% Remaining</span>
-                  </div>
-                  <div>
-                    <span className="text-stone-500 block text-[10px]">MAX PAYLOAD</span>
-                    <span className="text-stone-200 font-bold">{drone.maxPayloadKg} kg</span>
-                  </div>
-                  <div>
-                    <span className="text-stone-500 block text-[10px]">CURRENT ALTITUDE</span>
-                    <span className="text-stone-200 font-bold">120m AGL</span>
-                  </div>
-                  <div>
-                    <span className="text-stone-500 block text-[10px]">COMM LINK</span>
-                    <span className="text-emerald-400 font-bold">Mesh Band 4 (99%)</span>
-                  </div>
-                </div>
-
-                <div className="text-[11px] text-stone-400 font-mono">
-                  Payload Capabilities: {drone.capabilities.join(' • ')}
-                </div>
+          {/* State Drone Fleet Header & Quick Deployment Trigger */}
+          <div className="bg-stone-900 border border-cyan-900/60 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-stone-100 uppercase tracking-wide font-mono flex items-center gap-2">
+                  <PlaneTakeoff className="w-4 h-4 text-cyan-400" />
+                  {selectedState && selectedState !== 'all'
+                    ? `${selectedState} State UAV Fleet & Aerial Telemetry`
+                    : 'Pan-India Drone Fleet & Aerial Telemetry'}
+                </h2>
+                <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono font-bold">
+                  {stateDrones.length} DRONES IN STATE
+                </span>
               </div>
-            ))}
+              <p className="text-xs text-stone-400 mt-1">
+                Isolated state squadron management, automated high-altitude mesh routing, and precision supply drops.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setDeployDroneTarget(undefined);
+                  setDeployDronePreselectedId(undefined);
+                  setShowDeployDroneModal(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white text-xs font-mono font-bold rounded-xl shadow-lg transition-all active:scale-95"
+              >
+                <Plane className="w-4 h-4" />
+                Deploy State UAV to Any Location
+              </button>
+            </div>
           </div>
 
-          {/* Active Missions */}
-          <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 space-y-3">
-            <h3 className="text-xs font-bold uppercase text-stone-200 tracking-wider font-mono">
-              Active Recon & Supply Drop Missions
-            </h3>
-            <div className="space-y-2">
-              {droneMissions.map((mission) => (
-                <div
-                  key={mission.id}
-                  className="bg-stone-950 p-3 rounded-xl border border-stone-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono"
-                >
-                  <div>
-                    <span className="font-bold text-cyan-300">
-                      {(mission as any).title || `${mission.droneName} — ${mission.missionType.replace('_', ' ').toUpperCase()}`}
-                    </span>
-                    <span className="text-stone-400 block text-[11px]">
-                      {(mission as any).notes || mission.operatorNotes || mission.targetLocation?.name || 'In flight'}
+          {/* Drone Telemetry Recharts Analytics Widget (Filtered to State) */}
+          <DroneTelemetryWidget drones={stateDrones} droneMissions={stateDroneMissions} />
+
+          {/* State Drone Fleet Cards Grid */}
+          <div>
+            <div className="flex items-center justify-between mb-3 text-xs font-mono">
+              <span className="text-stone-300 font-bold uppercase">
+                {selectedState && selectedState !== 'all' ? `${selectedState} Fleet Squadrons` : 'All State Fleet Units'} ({stateDrones.length})
+              </span>
+              <span className="text-stone-500 text-[11px]">
+                Showing drones allocated specifically to {selectedState && selectedState !== 'all' ? selectedState : 'all states'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {stateDrones.map((drone) => (
+                <div key={drone.id} className="bg-stone-900 border border-stone-800 rounded-2xl p-4 space-y-3 shadow-md">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-cyan-950 text-cyan-400 rounded-xl border border-cyan-800">
+                        <PlaneTakeoff className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-stone-100">{drone.name}</h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs font-mono text-stone-400">{drone.model}</span>
+                          <span className="px-1.5 py-0.2 rounded bg-stone-800 text-cyan-300 text-[10px] font-mono font-bold">
+                            {drone.state} • {drone.district || 'State Air Wing'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
+                        drone.status === 'airborne' || drone.status === 'delivering'
+                          ? 'bg-cyan-950 text-cyan-300 border border-cyan-700 animate-pulse'
+                          : drone.status === 'surveying'
+                          ? 'bg-amber-950 text-amber-300 border border-amber-700'
+                          : 'bg-stone-800 text-stone-400'
+                      }`}
+                    >
+                      {drone.status}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-stone-800 text-stone-300 uppercase text-[10px]">
-                      {mission.missionType}
+
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-stone-950 p-2.5 rounded-xl border border-stone-800">
+                    <div>
+                      <span className="text-stone-500 block text-[10px]">BATTERY</span>
+                      <span className="text-cyan-400 font-bold">{drone.batteryPercent}% Remaining</span>
+                    </div>
+                    <div>
+                      <span className="text-stone-500 block text-[10px]">MAX PAYLOAD</span>
+                      <span className="text-stone-200 font-bold">{drone.maxPayloadKg} kg</span>
+                    </div>
+                    <div>
+                      <span className="text-stone-500 block text-[10px]">CURRENT ALTITUDE</span>
+                      <span className="text-stone-200 font-bold">
+                        {drone.status === 'airborne' ? '120m AGL (Cruising)' : 'Ground Station'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-stone-500 block text-[10px]">COMM LINK</span>
+                      <span className="text-emerald-400 font-bold">
+                        {drone.batteryPercent > 20 ? 'Mesh Band 4 (99%)' : 'Low Battery Standby'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-stone-400 font-mono">
+                    Payload Capabilities: {drone.capabilities.join(' • ')}
+                  </div>
+
+                  {/* Direct Drone Action Bar */}
+                  <div className="pt-2 border-t border-stone-800/80 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono text-stone-500">
+                      Coordinates: {drone.currentLocation.lat.toFixed(4)}, {drone.currentLocation.lng.toFixed(4)}
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold text-[10px] uppercase">
-                      {mission.status}
-                    </span>
+                    <button
+                      onClick={() => {
+                        setDeployDronePreselectedId(drone.id);
+                        setDeployDroneTarget(undefined);
+                        setShowDeployDroneModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 hover:text-cyan-100 text-xs font-mono font-bold rounded-lg flex items-center gap-1.5 transition-all"
+                    >
+                      <Plane className="w-3.5 h-3.5" />
+                      {drone.status === 'airborne' ? 'Retarget Drone' : 'Deploy This Drone'}
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Active Missions in this State */}
+          <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <h3 className="font-bold uppercase text-stone-200 tracking-wider">
+                Active Recon & Supply Drop Missions ({stateDroneMissions.length})
+              </h3>
+              <span className="text-stone-500 text-[11px]">
+                {selectedState && selectedState !== 'all' ? `Missions in ${selectedState}` : 'All State Missions'}
+              </span>
+            </div>
+
+            {stateDroneMissions.length === 0 ? (
+              <div className="p-6 text-center text-xs font-mono text-stone-500 bg-stone-950 rounded-xl border border-stone-800">
+                No active missions currently flying in this jurisdiction. Click "Deploy State UAV to Any Location" above to launch a new mission.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {stateDroneMissions.map((mission) => (
+                  <div
+                    key={mission.id}
+                    className="bg-stone-950 p-3 rounded-xl border border-stone-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono"
+                  >
+                    <div>
+                      <span className="font-bold text-cyan-300">
+                        {(mission as any).title || `${mission.droneName} — ${mission.missionType.replace('_', ' ').toUpperCase()}`}
+                      </span>
+                      <span className="text-stone-400 block text-[11px] mt-0.5">
+                        Target: {(mission as any).targetLocation?.name || `${(mission as any).targetLocation?.lat?.toFixed(4)}, ${(mission as any).targetLocation?.lng?.toFixed(4)}`} • {(mission as any).notes || mission.operatorNotes || 'Flight path monitored'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded bg-stone-800 text-stone-300 uppercase text-[10px]">
+                        {mission.missionType}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold text-[10px] uppercase">
+                        {mission.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* TAB 4: SHELTER LOGISTICS */}
+      {/* TAB 4: SHELTER LOGISTICS (STATE ISOLATED) */}
       {activeSubTab === 'shelters' && (
         <div className="space-y-4">
+          {/* State Shelter Logistics Header */}
+          <div className="bg-stone-900 border border-emerald-900/60 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-stone-100 uppercase tracking-wide font-mono flex items-center gap-2">
+                  <Home className="w-4 h-4 text-emerald-400" />
+                  {selectedState && selectedState !== 'all'
+                    ? `${selectedState} Disaster Shelters & Relief Camps`
+                    : 'Pan-India Disaster Shelters & Relief Camps'}
+                </h2>
+                <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono font-bold">
+                  {stateShelters.length} SHELTERS IN STATE
+                </span>
+              </div>
+              <p className="text-xs text-stone-400 mt-1">
+                Real-time bed capacities, supply inventory, and drone delivery dispatch for disaster evacuees.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-stone-400">Filter State:</span>
+              <select
+                value={selectedState}
+                onChange={(e) => setSelectedState(e.target.value)}
+                className="bg-stone-950 border border-stone-700 text-stone-200 text-xs font-mono font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
+              >
+                <option value="all">All India ({shelters.length} Shelters)</option>
+                {availableStates.map((st) => (
+                  <option key={st} value={st}>
+                    {st} ({shelters.filter((s) => s.state?.toLowerCase() === st.toLowerCase()).length})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {shelters.map((shelter) => {
+            {stateShelters.map((shelter) => {
               const isFull = shelter.status === 'full';
               const percent = Math.min(100, Math.round((shelter.currentOccupancy / shelter.capacity) * 100));
 
@@ -626,6 +838,17 @@ export const OperationsDashboard: React.FC = () => {
                     <div>
                       <h3 className="text-sm font-bold text-stone-100">{shelter.name}</h3>
                       <p className="text-xs text-stone-400">{shelter.address}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="px-1.5 py-0.2 rounded bg-stone-800 text-emerald-300 text-[10px] font-mono font-bold">
+                          {shelter.state} • {shelter.district}
+                        </span>
+                        {shelter.medicalFacilityOnsite && (
+                          <span className="text-[10px] font-mono text-sky-400">🏥 Medical On-site</span>
+                        )}
+                        {shelter.petFriendly && (
+                          <span className="text-[10px] font-mono text-amber-400">🐾 Pet Friendly</span>
+                        )}
+                      </div>
                     </div>
                     <span
                       className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold uppercase ${
@@ -634,7 +857,7 @@ export const OperationsDashboard: React.FC = () => {
                           : 'bg-emerald-950 text-emerald-300 border border-emerald-700'
                       }`}
                     >
-                      {isFull ? 'FULL (250/250)' : `${shelter.capacity - shelter.currentOccupancy} OPEN`}
+                      {isFull ? `FULL (${shelter.capacity}/${shelter.capacity})` : `${shelter.capacity - shelter.currentOccupancy} OPEN`}
                     </span>
                   </div>
 
@@ -654,10 +877,10 @@ export const OperationsDashboard: React.FC = () => {
                       />
                     </div>
 
-                    {/* Stepper Buttons */}
-                    <div className="flex items-center justify-between pt-1 font-mono text-xs">
-                      <span className="text-[10px] text-stone-500">Manual Check-In:</span>
+                    {/* Stepper Buttons & Drone Delivery Dispatch */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 font-mono text-xs">
                       <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-stone-500">Triage Check-In:</span>
                         <button
                           onClick={() => updateShelterCapacity(shelter.id, shelter.currentOccupancy - 10)}
                           className="px-2 py-1 bg-stone-800 hover:bg-stone-700 rounded text-stone-200"
@@ -678,6 +901,23 @@ export const OperationsDashboard: React.FC = () => {
                           Set Full
                         </button>
                       </div>
+
+                      <button
+                        onClick={() => {
+                          setDeployDroneTarget({
+                            lat: shelter.location.lat,
+                            lng: shelter.location.lng,
+                            name: shelter.name,
+                          });
+                          setDeployDronePreselectedId(undefined);
+                          setShowDeployDroneModal(true);
+                        }}
+                        className="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 hover:text-cyan-100 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all"
+                        title="Dispatch supply drop drone to this shelter"
+                      >
+                        <Plane className="w-3 h-3" />
+                        Dispatch Supply UAV
+                      </button>
                     </div>
                   </div>
 
@@ -685,7 +925,7 @@ export const OperationsDashboard: React.FC = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
                     <div className="bg-stone-950 p-2 rounded-lg border border-stone-800">
                       <span className="text-stone-500 block">WATER</span>
-                      <span className="text-emerald-400 font-bold">{shelter.supplies?.water || '4,500 L (Adequate)'}</span>
+                      <span className="text-emerald-400 font-bold">{shelter.supplies?.water || '4,500 L'}</span>
                     </div>
                     <div className="bg-stone-950 p-2 rounded-lg border border-stone-800">
                       <span className="text-stone-500 block">FOOD</span>
@@ -778,6 +1018,18 @@ export const OperationsDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Deploy Drone Modal */}
+      <DeployDroneModal
+        isOpen={showDeployDroneModal}
+        onClose={() => {
+          setShowDeployDroneModal(false);
+          setDeployDroneTarget(undefined);
+          setDeployDronePreselectedId(undefined);
+        }}
+        initialTarget={deployDroneTarget}
+        initialDroneId={deployDronePreselectedId}
+      />
     </div>
   );
 };

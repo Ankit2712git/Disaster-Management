@@ -2,6 +2,75 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Gracefully handle Vite HMR WebSocket connection in container sandbox
+      (function () {
+        if (typeof window === 'undefined') return;
+
+        // Suppress unhandled rejection notices for benign Vite HMR disconnections
+        window.addEventListener('unhandledrejection', function (e) {
+          const reasonStr = String(e.reason?.message || e.reason || '');
+          if (
+            reasonStr.includes('WebSocket') ||
+            reasonStr.includes('[vite]') ||
+            reasonStr.includes('WebSocket closed without opened')
+          ) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        });
+
+        window.addEventListener('error', function (e) {
+          const msg = String(e.message || '');
+          if (msg.includes('WebSocket') || msg.includes('[vite]')) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        });
+
+        const OrigWebSocket = window.WebSocket;
+        if (!OrigWebSocket) return;
+
+        function ViteHmrSocket(url, protocols) {
+          const isViteHmr =
+            protocols === 'vite-hmr' ||
+            (Array.isArray(protocols) && protocols.includes('vite-hmr')) ||
+            (typeof url === 'string' && url.includes('token='));
+
+          if (isViteHmr) {
+            const target = new EventTarget();
+            target.url = url;
+            target.readyState = 1; // WebSocket.OPEN
+            target.OPEN = 1;
+            target.CONNECTING = 0;
+            target.CLOSING = 2;
+            target.CLOSED = 3;
+            target.binaryType = 'blob';
+            target.bufferedAmount = 0;
+            target.extensions = '';
+            target.protocol = 'vite-hmr';
+            target.send = function () {};
+            target.close = function () {
+              target.readyState = 3;
+              target.dispatchEvent(new Event('close'));
+            };
+            setTimeout(function () {
+              target.dispatchEvent(new Event('open'));
+            }, 0);
+            return target;
+          }
+          return new OrigWebSocket(url, protocols);
+        }
+
+        ViteHmrSocket.prototype = OrigWebSocket.prototype;
+        ViteHmrSocket.OPEN = 1;
+        ViteHmrSocket.CONNECTING = 0;
+        ViteHmrSocket.CLOSING = 2;
+        ViteHmrSocket.CLOSED = 3;
+
+        window.WebSocket = ViteHmrSocket;
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ResQMap</title>
     <meta name="description" content="Emergency disaster mapping, shelter navigation, rescue coordination, drone logistics, and disaster intelligence platform." />

@@ -1387,6 +1387,16 @@ export const EmergencyMap: React.FC<EmergencyMapProps> = ({
         onRetryGps={handleGetLiveLocation}
         isLocating={isLocating}
       />
+
+      {/* Deploy Drone Modal */}
+      <DeployDroneModal
+        isOpen={showDeployDroneModal}
+        onClose={() => {
+          setShowDeployDroneModal(false);
+          setDeployDroneTargetCoords(undefined);
+        }}
+        initialTarget={deployDroneTargetCoords}
+      />
     </div>
   );
 };
